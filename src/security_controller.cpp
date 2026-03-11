@@ -1,5 +1,6 @@
 #include "security_controller.h"
 #include "config.h"
+#include <ArduinoJson.h>
 
 SecurityController* SecurityController::instance = nullptr;
 
@@ -23,26 +24,34 @@ void SecurityController::begin() {
   network.begin();
   network.setCommandHandler(commandProxy);
 
-  systemState.isArmed = false;
   systemState.offlineMode = false;
   systemState.mqttConnected = false;
   systemState.wifiConnected = false;
   systemState.sensorFailure = false;
+  systemState.queuedEvents = 0;
+
+  loadPersistentState();
 
   Serial.println("ESP32 Security System Start");
   Serial.print("Room ID: ");
   Serial.println(ROOM_ID);
+  Serial.print("Room Name: ");
+  Serial.println(ROOM_NAME);
+  Serial.print("Zone Type: ");
+  Serial.println(ZONE_TYPE);
   Serial.print("Device ID: ");
   Serial.println(DEVICE_ID);
+  Serial.print("Firmware: ");
+  Serial.println(FIRMWARE_VERSION);
 }
 
 void SecurityController::update() {
   network.update(systemState);
 
   if (sensors.isArmButtonPressed()) {
-    systemState.isArmed = !systemState.isArmed;
+    setArmedState(!systemState.isArmed);
 
-    Serial.print("Статус змінено: ");
+    Serial.print("Status changed: ");
     Serial.println(systemState.isArmed ? "ARMED" : "DISARMED");
 
     network.publishStatus(systemState.isArmed ? "ARMED" : "DISARMED", systemState);
@@ -72,7 +81,7 @@ void SecurityController::update() {
     } else {
       Serial.print("[");
       Serial.print(ROOM_ID);
-      Serial.println("] Помилка читання DHT22");
+      Serial.println("] DHT22 read error");
     }
 
     display.showSystemState(
@@ -107,7 +116,7 @@ void SecurityController::update() {
 }
 
 void SecurityController::handleAlarm(const String &reason) {
-  Serial.print("!!! ТРИВОГА [");
+  Serial.print("!!! ALARM [");
   Serial.print(ROOM_ID);
   Serial.print("]: ");
   Serial.print(reason);
@@ -126,22 +135,69 @@ void SecurityController::processCommands(const String &cmd) {
   Serial.print("]: ");
   Serial.println(cmd);
 
-  if (cmd.indexOf("\"token\":\"") == -1 || cmd.indexOf(DEVICE_TOKEN) == -1) {
-    Serial.println("Команда відхилена: невірний token");
+  JsonDocument doc;
+  DeserializationError error = deserializeJson(doc, cmd);
+  if (error) {
+    Serial.print("Command rejected: invalid JSON, ");
+    Serial.println(error.c_str());
     return;
   }
 
-  if (cmd.indexOf("\"action\":\"ARM\"") != -1) {
-    systemState.isArmed = true;
+  const char *token = "";
+  if (doc["token"].is<const char*>()) {
+    token = doc["token"];
+  } else if (doc["deviceToken"].is<const char*>()) {
+    token = doc["deviceToken"];
+  }
+  if (String(token) != DEVICE_TOKEN) {
+    Serial.println("Command rejected: invalid token");
+    return;
+  }
+
+  const char *targetRoom = ROOM_ID;
+  if (doc["roomId"].is<const char*>()) {
+    targetRoom = doc["roomId"];
+  }
+  if (String(targetRoom) != ROOM_ID) {
+    Serial.println("Command ignored: wrong roomId");
+    return;
+  }
+
+  const char *action = "";
+  if (doc["action"].is<const char*>()) {
+    action = doc["action"];
+  }
+  if (strcmp(action, "ARM") == 0) {
+    setArmedState(true);
     network.publishStatus("ARMED", systemState);
-  } else if (cmd.indexOf("\"action\":\"DISARM\"") != -1) {
-    systemState.isArmed = false;
+  } else if (strcmp(action, "DISARM") == 0) {
+    setArmedState(false);
     alarm.stop();
     network.publishStatus("DISARMED", systemState);
-  } else if (cmd.indexOf("\"action\":\"RESET_ALARM\"") != -1) {
+  } else if (strcmp(action, "RESET_ALARM") == 0) {
     alarm.stop();
     network.publishStatus("ALARM_RESET", systemState);
+  } else {
+    Serial.println("Command ignored: unsupported action");
   }
+}
+
+void SecurityController::setArmedState(bool armed) {
+  if (systemState.isArmed == armed) {
+    return;
+  }
+
+  systemState.isArmed = armed;
+  saveArmedState();
+}
+
+void SecurityController::loadPersistentState() {
+  preferences.begin("security", false);
+  systemState.isArmed = preferences.getBool("isArmed", false);
+}
+
+void SecurityController::saveArmedState() {
+  preferences.putBool("isArmed", systemState.isArmed);
 }
 
 void SecurityController::commandProxy(const String &cmd) {

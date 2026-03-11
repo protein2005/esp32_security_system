@@ -1,6 +1,7 @@
 #ifndef SECURITY_CONTROLLER_H
 #define SECURITY_CONTROLLER_H
 
+#include <Preferences.h>
 #include "models.h"
 #include "sensors.h"
 #include "display_manager.h"
@@ -17,6 +18,7 @@ private:
   DisplayManager display;
   AlarmManager alarm;
   NetworkManager network;
+  Preferences preferences;
 
   SensorData sensorData;
   SystemState systemState;
@@ -26,6 +28,9 @@ private:
 
   void processCommands(const String &cmd);
   void handleAlarm(const String &reason);
+  void setArmedState(bool armed);
+  void loadPersistentState();
+  void saveArmedState();
   static SecurityController *instance;
   static void commandProxy(const String &cmd);
 };

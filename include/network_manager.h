@@ -3,6 +3,8 @@
 
 #include <WiFi.h>
 #include <PubSubClient.h>
+#include <ArduinoJson.h>
+#include "config.h"
 #include "models.h"
 
 class NetworkManager {
@@ -12,10 +14,10 @@ public:
   void begin();
   void update(SystemState &state);
 
-  bool publishTelemetry(const SensorData &data, const SystemState &state);
-  bool publishAlarm(const String &reason, const SystemState &state);
-  bool publishHeartbeat(const SystemState &state);
-  bool publishStatus(const String &status, const SystemState &state);
+  bool publishTelemetry(const SensorData &data, SystemState &state);
+  bool publishAlarm(const String &reason, SystemState &state);
+  bool publishHeartbeat(SystemState &state);
+  bool publishStatus(const String &status, SystemState &state);
 
   void setCommandHandler(void (*handler)(const String&));
   PubSubClient& getClient();
@@ -24,6 +26,9 @@ private:
   WiFiClient wifiClient;
   PubSubClient mqttClient;
   unsigned long lastReconnectAttempt;
+  QueuedEvent offlineQueue[OFFLINE_QUEUE_CAPACITY];
+  size_t queueHead = 0;
+  size_t queueSize = 0;
 
   String telemetryTopic;
   String alarmTopic;
@@ -34,6 +39,10 @@ private:
   void buildTopics();
   void connectWiFi(SystemState &state);
   bool connectMQTT(SystemState &state);
+  bool publishOrQueue(const String &topic, const String &payload, SystemState &state);
+  void enqueueEvent(const String &topic, const String &payload, SystemState &state);
+  void flushOfflineQueue(SystemState &state);
+  void populateBasePayload(JsonDocument &doc) const;
 
   static void mqttCallback(char *topic, byte *payload, unsigned int length);
   static void (*externalCommandHandler)(const String&);

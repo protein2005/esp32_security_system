@@ -21,6 +21,7 @@ void NetworkManager::begin() {
   buildTopics();
 
   mqttClient.setServer(MQTT_SERVER, MQTT_PORT);
+  mqttClient.setBufferSize(MQTT_PACKET_BUFFER_SIZE);
   mqttClient.setCallback(mqttCallback);
 }
 
@@ -56,6 +57,7 @@ bool NetworkManager::connectMQTT(SystemState &state) {
     state.mqttConnected = true;
     state.offlineMode = false;
 
+    flushOfflineQueue(state);
     publishStatus("ONLINE", state);
     return true;
   }
@@ -87,91 +89,65 @@ void NetworkManager::update(SystemState &state) {
   mqttClient.loop();
 }
 
-bool NetworkManager::publishTelemetry(const SensorData &data, const SystemState &state) {
-  if (!mqttClient.connected()) {
-    return false;
-  }
+bool NetworkManager::publishTelemetry(const SensorData &data, SystemState &state) {
+  JsonDocument doc;
+  populateBasePayload(doc);
+  doc["eventType"] = "telemetry";
+  doc["temp"] = data.temperature;
+  doc["hum"] = data.humidity;
+  doc["motion"] = data.motionDetected;
+  doc["door"] = data.doorOpen;
+  doc["armed"] = state.isArmed;
+  doc["offline"] = state.offlineMode;
+  doc["sensorFailure"] = state.sensorFailure;
+  doc["dhtOk"] = data.dhtOk;
 
-  char payload[320];
-  snprintf(
-    payload,
-    sizeof(payload),
-    "{\"deviceId\":\"%s\",\"roomId\":\"%s\",\"token\":\"%s\",\"temp\":%.1f,\"hum\":%.1f,\"motion\":%s,\"door\":%s,\"armed\":%s,\"offline\":%s,\"sensorFailure\":%s}",
-    DEVICE_ID,
-    ROOM_ID,
-    DEVICE_TOKEN,
-    data.temperature,
-    data.humidity,
-    data.motionDetected ? "true" : "false",
-    data.doorOpen ? "true" : "false",
-    state.isArmed ? "true" : "false",
-    state.offlineMode ? "true" : "false",
-    state.sensorFailure ? "true" : "false"
-  );
-
-  return mqttClient.publish(telemetryTopic.c_str(), payload);
+  String payload;
+  serializeJson(doc, payload);
+  return publishOrQueue(telemetryTopic, payload, state);
 }
 
-bool NetworkManager::publishAlarm(const String &reason, const SystemState &state) {
-  if (!mqttClient.connected()) {
-    return false;
-  }
+bool NetworkManager::publishAlarm(const String &reason, SystemState &state) {
+  JsonDocument doc;
+  populateBasePayload(doc);
+  doc["eventType"] = "alarm";
+  doc["reason"] = reason;
+  doc["armed"] = state.isArmed;
+  doc["offline"] = state.offlineMode;
 
-  char payload[256];
-  snprintf(
-    payload,
-    sizeof(payload),
-    "{\"deviceId\":\"%s\",\"roomId\":\"%s\",\"token\":\"%s\",\"reason\":\"%s\",\"armed\":%s}",
-    DEVICE_ID,
-    ROOM_ID,
-    DEVICE_TOKEN,
-    reason.c_str(),
-    state.isArmed ? "true" : "false"
-  );
-
-  return mqttClient.publish(alarmTopic.c_str(), payload);
+  String payload;
+  serializeJson(doc, payload);
+  return publishOrQueue(alarmTopic, payload, state);
 }
 
-bool NetworkManager::publishHeartbeat(const SystemState &state) {
-  if (!mqttClient.connected()) {
-    return false;
-  }
+bool NetworkManager::publishHeartbeat(SystemState &state) {
+  JsonDocument doc;
+  populateBasePayload(doc);
+  doc["eventType"] = "heartbeat";
+  doc["wifi"] = state.wifiConnected;
+  doc["mqtt"] = state.mqttConnected;
+  doc["offline"] = state.offlineMode;
+  doc["armed"] = state.isArmed;
+  doc["queuedEvents"] = state.queuedEvents;
 
-  char payload[256];
-  snprintf(
-    payload,
-    sizeof(payload),
-    "{\"deviceId\":\"%s\",\"roomId\":\"%s\",\"token\":\"%s\",\"wifi\":%s,\"mqtt\":%s,\"offline\":%s}",
-    DEVICE_ID,
-    ROOM_ID,
-    DEVICE_TOKEN,
-    state.wifiConnected ? "true" : "false",
-    state.mqttConnected ? "true" : "false",
-    state.offlineMode ? "true" : "false"
-  );
-
-  return mqttClient.publish(heartbeatTopic.c_str(), payload);
+  String payload;
+  serializeJson(doc, payload);
+  return publishOrQueue(heartbeatTopic, payload, state);
 }
 
-bool NetworkManager::publishStatus(const String &status, const SystemState &state) {
-  if (!mqttClient.connected()) {
-    return false;
-  }
+bool NetworkManager::publishStatus(const String &status, SystemState &state) {
+  JsonDocument doc;
+  populateBasePayload(doc);
+  doc["eventType"] = "status";
+  doc["status"] = status;
+  doc["armed"] = state.isArmed;
+  doc["offline"] = state.offlineMode;
+  doc["sensorFailure"] = state.sensorFailure;
+  doc["queuedEvents"] = state.queuedEvents;
 
-  char payload[256];
-  snprintf(
-    payload,
-    sizeof(payload),
-    "{\"deviceId\":\"%s\",\"roomId\":\"%s\",\"token\":\"%s\",\"status\":\"%s\",\"armed\":%s,\"offline\":%s}",
-    DEVICE_ID,
-    ROOM_ID,
-    DEVICE_TOKEN,
-    status.c_str(),
-    state.isArmed ? "true" : "false",
-    state.offlineMode ? "true" : "false"
-  );
-
-  return mqttClient.publish(statusTopic.c_str(), payload);
+  String payload;
+  serializeJson(doc, payload);
+  return publishOrQueue(statusTopic, payload, state);
 }
 
 void NetworkManager::setCommandHandler(void (*handler)(const String&)) {
@@ -179,6 +155,7 @@ void NetworkManager::setCommandHandler(void (*handler)(const String&)) {
 }
 
 void NetworkManager::mqttCallback(char *topic, byte *payload, unsigned int length) {
+  (void)topic;
   String message;
   for (unsigned int i = 0; i < length; i++) {
     message += (char)payload[i];
@@ -191,4 +168,74 @@ void NetworkManager::mqttCallback(char *topic, byte *payload, unsigned int lengt
 
 PubSubClient& NetworkManager::getClient() {
   return mqttClient;
+}
+
+bool NetworkManager::publishOrQueue(const String &topic, const String &payload, SystemState &state) {
+  Serial.print("MQTT publish attempt: topic=");
+  Serial.print(topic);
+  Serial.print(", bytes=");
+  Serial.println(payload.length());
+
+  if (mqttClient.connected()) {
+    bool published = mqttClient.publish(topic.c_str(), payload.c_str());
+    if (published) {
+      state.mqttConnected = true;
+      state.offlineMode = false;
+      return true;
+    }
+
+    Serial.print("MQTT publish failed, client state=");
+    Serial.println(mqttClient.state());
+  }
+
+  enqueueEvent(topic, payload, state);
+  state.offlineMode = true;
+  state.mqttConnected = false;
+  return false;
+}
+
+void NetworkManager::enqueueEvent(const String &topic, const String &payload, SystemState &state) {
+  size_t insertIndex = (queueHead + queueSize) % OFFLINE_QUEUE_CAPACITY;
+  if (queueSize == OFFLINE_QUEUE_CAPACITY) {
+    queueHead = (queueHead + 1) % OFFLINE_QUEUE_CAPACITY;
+    insertIndex = (queueHead + queueSize - 1) % OFFLINE_QUEUE_CAPACITY;
+  } else {
+    queueSize++;
+  }
+
+  offlineQueue[insertIndex].topic = topic;
+  offlineQueue[insertIndex].payload = payload;
+  state.queuedEvents = queueSize;
+}
+
+void NetworkManager::flushOfflineQueue(SystemState &state) {
+  while (queueSize > 0 && mqttClient.connected()) {
+    QueuedEvent &event = offlineQueue[queueHead];
+    if (!mqttClient.publish(event.topic.c_str(), event.payload.c_str())) {
+      Serial.print("MQTT flush failed, client state=");
+      Serial.println(mqttClient.state());
+      state.mqttConnected = false;
+      state.offlineMode = true;
+      break;
+    }
+
+    event.topic = "";
+    event.payload = "";
+    queueHead = (queueHead + 1) % OFFLINE_QUEUE_CAPACITY;
+    queueSize--;
+  }
+
+  state.queuedEvents = queueSize;
+  if (queueSize == 0 && mqttClient.connected()) {
+    state.mqttConnected = true;
+    state.offlineMode = false;
+  }
+}
+
+void NetworkManager::populateBasePayload(JsonDocument &doc) const {
+  doc["deviceId"] = DEVICE_ID;
+  doc["roomId"] = ROOM_ID;
+  doc["roomName"] = ROOM_NAME;
+  doc["zoneType"] = ZONE_TYPE;
+  doc["firmwareVersion"] = FIRMWARE_VERSION;
 }
