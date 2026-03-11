@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "author": "ІО-25 Сокольчук Олексій",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-devkit-c-v4",
+      "id": "esp",
+      "top": -19.2,
+      "left": 4.84,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-pir-motion-sensor",
+      "id": "pir1",
+      "top": -178.4,
+      "left": 184.62,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-dht22",
+      "id": "dht1",
+      "top": -182.1,
+      "left": -82.2,
+      "attrs": { "temperature": "37.5" }
+    },
+    {
+      "type": "wokwi-slide-switch",
+      "id": "sw1",
+      "top": 177.2,
+      "left": -131.3,
+      "attrs": { "label": "Датчик дверей" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led1",
+      "top": 178.8,
+      "left": 138.2,
+      "attrs": { "color": "red" }
+    },
+    {
+      "type": "wokwi-buzzer",
+      "id": "bz1",
+      "top": 175.2,
+      "left": 251.4,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn1",
+      "top": 294.2,
+      "left": 124.8,
+      "attrs": { "label": "ARM/DISARM", "color": "green" }
+    },
+    {
+      "type": "board-ssd1306",
+      "id": "oled1",
+      "top": -160,
+      "left": 60,
+      "attrs": {}
+    }
+  ],
+  "connections": [
+    ["esp:TX", "$serialMonitor:RX", "", []],
+    ["esp:RX", "$serialMonitor:TX", "", []],
+
+    ["esp:GND.1", "pir1:GND", "black", ["h230.55", "v-192.4"]],
+    ["esp:5V", "pir1:VCC", "red", ["h-57.45", "v-230.4", "h264.18"]],
+    ["esp:13", "pir1:OUT", "orange", ["h-9.45", "v-182.4", "h225.92"]],
+
+    ["esp:GND.1", "dht1:GND", "black", ["h-47.85", "v-172.8"]],
+    ["esp:3V3.1", "dht1:VCC", "red", ["v0"]],
+    ["esp:15", "dht1:SDA", "blue", ["h38.4", "v-182.4", "h-201.7"]],
+
+    ["esp:GND.2", "sw1:1", "black", ["h9.6", "v211.2", "h-240"]],
+    ["esp:14", "sw1:2", "green", ["h-28.65", "v115.2", "h-96.1"]],
+
+    ["esp:GND.2", "led1:C", "black", ["h19.2", "v211.2"]],
+    ["esp:12", "led1:A", "red", ["h-38.25", "v115.2", "h192"]],
+
+    ["esp:GND.2", "bz1:1", "black", ["h28.8", "v249.6"]],
+    ["esp:27", "bz1:2", "purple", ["h-19.05", "v163.2", "h259.6"]],
+
+    ["esp:21", "oled1:SDA", "blue", ["h0"]],
+    ["esp:22", "oled1:SCL", "yellow", ["h0"]],
+    ["esp:GND.1", "oled1:GND", "black", ["v0"]],
+    ["esp:3V3.1", "oled1:VCC", "red", ["v0"]],
+
+    ["esp:26", "btn1:2.r", "green", ["v10", "h192.15", "v220.2"]],
+    ["esp:GND.2", "btn1:1.l", "black", ["v10", "h0"]]
+  ]
+}
