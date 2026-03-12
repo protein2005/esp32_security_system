@@ -43,6 +43,7 @@ private:
   void enqueueEvent(const String &topic, const String &payload, SystemState &state);
   void flushOfflineQueue(SystemState &state);
   void populateBasePayload(JsonDocument &doc) const;
+  void populateThresholdPayload(JsonDocument &doc, const SystemState &state) const;
 
   static void mqttCallback(char *topic, byte *payload, unsigned int length);
   static void (*externalCommandHandler)(const String&);

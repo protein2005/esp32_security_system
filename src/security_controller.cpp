@@ -29,6 +29,10 @@ void SecurityController::begin() {
   systemState.wifiConnected = false;
   systemState.sensorFailure = false;
   systemState.queuedEvents = 0;
+  systemState.tempMinThreshold = DEFAULT_TEMP_MIN_THRESHOLD;
+  systemState.tempMaxThreshold = DEFAULT_TEMP_MAX_THRESHOLD;
+  systemState.humidityMinThreshold = DEFAULT_HUMIDITY_MIN_THRESHOLD;
+  systemState.humidityMaxThreshold = DEFAULT_HUMIDITY_MAX_THRESHOLD;
 
   loadPersistentState();
 
@@ -94,8 +98,10 @@ void SecurityController::update() {
 
     if (!sensorData.dhtOk) {
       handleAlarm("SENSOR_FAILURE");
-    } else if (sensorData.temperature > FIRE_TEMP_THRESHOLD) {
-      handleAlarm("FIRE_DANGER");
+    } else if (isTemperatureOutOfRange()) {
+      handleAlarm("TEMP_OUT_OF_RANGE");
+    } else if (isHumidityOutOfRange()) {
+      handleAlarm("HUMIDITY_OUT_OF_RANGE");
     }
 
     if (systemState.isArmed) {
@@ -177,6 +183,33 @@ void SecurityController::processCommands(const String &cmd) {
   } else if (strcmp(action, "RESET_ALARM") == 0) {
     alarm.stop();
     network.publishStatus("ALARM_RESET", systemState);
+  } else if (strcmp(action, "SET_THRESHOLDS") == 0) {
+    float tempMin = !doc["tempMin"].isNull() ? doc["tempMin"].as<float>() : systemState.tempMinThreshold;
+    float tempMax = !doc["tempMax"].isNull() ? doc["tempMax"].as<float>() : systemState.tempMaxThreshold;
+    float humidityMin = !doc["humidityMin"].isNull() ? doc["humidityMin"].as<float>() : systemState.humidityMinThreshold;
+    float humidityMax = !doc["humidityMax"].isNull() ? doc["humidityMax"].as<float>() : systemState.humidityMaxThreshold;
+
+    if (doc["thresholds"].is<JsonObjectConst>()) {
+      JsonObjectConst thresholds = doc["thresholds"].as<JsonObjectConst>();
+      if (!thresholds["tempMin"].isNull()) {
+        tempMin = thresholds["tempMin"].as<float>();
+      }
+      if (!thresholds["tempMax"].isNull()) {
+        tempMax = thresholds["tempMax"].as<float>();
+      }
+      if (!thresholds["humidityMin"].isNull()) {
+        humidityMin = thresholds["humidityMin"].as<float>();
+      }
+      if (!thresholds["humidityMax"].isNull()) {
+        humidityMax = thresholds["humidityMax"].as<float>();
+      }
+    }
+
+    if (updateThresholds(tempMin, tempMax, humidityMin, humidityMax)) {
+      network.publishStatus("THRESHOLDS_UPDATED", systemState);
+    } else {
+      Serial.println("Command rejected: invalid threshold values");
+    }
   } else {
     Serial.println("Command ignored: unsupported action");
   }
@@ -194,10 +227,58 @@ void SecurityController::setArmedState(bool armed) {
 void SecurityController::loadPersistentState() {
   preferences.begin("security", false);
   systemState.isArmed = preferences.getBool("isArmed", false);
+  systemState.tempMinThreshold = preferences.getFloat("tempMin", DEFAULT_TEMP_MIN_THRESHOLD);
+  systemState.tempMaxThreshold = preferences.getFloat("tempMax", DEFAULT_TEMP_MAX_THRESHOLD);
+  systemState.humidityMinThreshold = preferences.getFloat("humMin", DEFAULT_HUMIDITY_MIN_THRESHOLD);
+  systemState.humidityMaxThreshold = preferences.getFloat("humMax", DEFAULT_HUMIDITY_MAX_THRESHOLD);
 }
 
 void SecurityController::saveArmedState() {
   preferences.putBool("isArmed", systemState.isArmed);
+}
+
+void SecurityController::saveThresholdState() {
+  preferences.putFloat("tempMin", systemState.tempMinThreshold);
+  preferences.putFloat("tempMax", systemState.tempMaxThreshold);
+  preferences.putFloat("humMin", systemState.humidityMinThreshold);
+  preferences.putFloat("humMax", systemState.humidityMaxThreshold);
+}
+
+bool SecurityController::updateThresholds(float tempMin, float tempMax, float humidityMin, float humidityMax) {
+  if (tempMin >= tempMax || humidityMin >= humidityMax) {
+    return false;
+  }
+
+  if (tempMin < -40.0f || tempMax > 125.0f || humidityMin < 0.0f || humidityMax > 100.0f) {
+    return false;
+  }
+
+  systemState.tempMinThreshold = tempMin;
+  systemState.tempMaxThreshold = tempMax;
+  systemState.humidityMinThreshold = humidityMin;
+  systemState.humidityMaxThreshold = humidityMax;
+  saveThresholdState();
+
+  Serial.print("Thresholds updated: T[");
+  Serial.print(systemState.tempMinThreshold, 1);
+  Serial.print(", ");
+  Serial.print(systemState.tempMaxThreshold, 1);
+  Serial.print("] H[");
+  Serial.print(systemState.humidityMinThreshold, 1);
+  Serial.print(", ");
+  Serial.print(systemState.humidityMaxThreshold, 1);
+  Serial.println("]");
+  return true;
+}
+
+bool SecurityController::isTemperatureOutOfRange() const {
+  return sensorData.temperature < systemState.tempMinThreshold ||
+         sensorData.temperature > systemState.tempMaxThreshold;
+}
+
+bool SecurityController::isHumidityOutOfRange() const {
+  return sensorData.humidity < systemState.humidityMinThreshold ||
+         sensorData.humidity > systemState.humidityMaxThreshold;
 }
 
 void SecurityController::commandProxy(const String &cmd) {

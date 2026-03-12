@@ -31,7 +31,10 @@ static const char *DEVICE_TOKEN = "room101_secure_token";
 static const char *FIRMWARE_VERSION = "1.1.0";
 
 // --- Thresholds ---
-static constexpr float FIRE_TEMP_THRESHOLD = 50.0f;
+static constexpr float DEFAULT_TEMP_MIN_THRESHOLD = 18.0f;
+static constexpr float DEFAULT_TEMP_MAX_THRESHOLD = 32.0f;
+static constexpr float DEFAULT_HUMIDITY_MIN_THRESHOLD = 30.0f;
+static constexpr float DEFAULT_HUMIDITY_MAX_THRESHOLD = 70.0f;
 
 // --- Timing ---
 static const unsigned long SENSOR_READ_INTERVAL = 1000;

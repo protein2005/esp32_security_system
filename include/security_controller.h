@@ -29,8 +29,12 @@ private:
   void processCommands(const String &cmd);
   void handleAlarm(const String &reason);
   void setArmedState(bool armed);
+  bool updateThresholds(float tempMin, float tempMax, float humidityMin, float humidityMax);
   void loadPersistentState();
   void saveArmedState();
+  void saveThresholdState();
+  bool isTemperatureOutOfRange() const;
+  bool isHumidityOutOfRange() const;
   static SecurityController *instance;
   static void commandProxy(const String &cmd);
 };

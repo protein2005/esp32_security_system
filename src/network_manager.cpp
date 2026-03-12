@@ -92,6 +92,7 @@ void NetworkManager::update(SystemState &state) {
 bool NetworkManager::publishTelemetry(const SensorData &data, SystemState &state) {
   JsonDocument doc;
   populateBasePayload(doc);
+  populateThresholdPayload(doc, state);
   doc["eventType"] = "telemetry";
   doc["temp"] = data.temperature;
   doc["hum"] = data.humidity;
@@ -110,6 +111,7 @@ bool NetworkManager::publishTelemetry(const SensorData &data, SystemState &state
 bool NetworkManager::publishAlarm(const String &reason, SystemState &state) {
   JsonDocument doc;
   populateBasePayload(doc);
+  populateThresholdPayload(doc, state);
   doc["eventType"] = "alarm";
   doc["reason"] = reason;
   doc["armed"] = state.isArmed;
@@ -123,6 +125,7 @@ bool NetworkManager::publishAlarm(const String &reason, SystemState &state) {
 bool NetworkManager::publishHeartbeat(SystemState &state) {
   JsonDocument doc;
   populateBasePayload(doc);
+  populateThresholdPayload(doc, state);
   doc["eventType"] = "heartbeat";
   doc["wifi"] = state.wifiConnected;
   doc["mqtt"] = state.mqttConnected;
@@ -138,6 +141,7 @@ bool NetworkManager::publishHeartbeat(SystemState &state) {
 bool NetworkManager::publishStatus(const String &status, SystemState &state) {
   JsonDocument doc;
   populateBasePayload(doc);
+  populateThresholdPayload(doc, state);
   doc["eventType"] = "status";
   doc["status"] = status;
   doc["armed"] = state.isArmed;
@@ -238,4 +242,11 @@ void NetworkManager::populateBasePayload(JsonDocument &doc) const {
   doc["roomName"] = ROOM_NAME;
   doc["zoneType"] = ZONE_TYPE;
   doc["firmwareVersion"] = FIRMWARE_VERSION;
+}
+
+void NetworkManager::populateThresholdPayload(JsonDocument &doc, const SystemState &state) const {
+  doc["tempMinThreshold"] = state.tempMinThreshold;
+  doc["tempMaxThreshold"] = state.tempMaxThreshold;
+  doc["humidityMinThreshold"] = state.humidityMinThreshold;
+  doc["humidityMaxThreshold"] = state.humidityMaxThreshold;
 }

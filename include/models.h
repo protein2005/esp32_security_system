@@ -18,6 +18,10 @@ struct SystemState {
   bool wifiConnected = false;
   bool sensorFailure = false;
   size_t queuedEvents = 0;
+  float tempMinThreshold = 0.0f;
+  float tempMaxThreshold = 0.0f;
+  float humidityMinThreshold = 0.0f;
+  float humidityMaxThreshold = 0.0f;
 };
 
 struct QueuedEvent {
