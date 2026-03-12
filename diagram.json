@@ -53,6 +53,13 @@
       "attrs": { "label": "ARM/DISARM", "color": "green" }
     },
     {
+      "type": "wokwi-pushbutton",
+      "id": "btn2",
+      "top": 294.2,
+      "left": 249.6,
+      "attrs": { "label": "RESET ALARM", "color": "yellow" }
+    },
+    {
       "type": "board-ssd1306",
       "id": "oled1",
       "top": -160,
@@ -87,6 +94,9 @@
     ["esp:3V3.1", "oled1:VCC", "red", ["v0"]],
 
     ["esp:26", "btn1:2.r", "green", ["v10", "h192.15", "v220.2"]],
-    ["esp:GND.2", "btn1:1.l", "black", ["v10", "h0"]]
+    ["esp:GND.2", "btn1:1.l", "black", ["v10", "h0"]],
+
+    ["esp:25", "btn2:2.r", "yellow", ["v10", "h201.75", "v220.2"]],
+    ["esp:GND.2", "btn2:1.l", "black", ["v10", "h124.8"]]
   ]
 }

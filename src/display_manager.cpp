@@ -44,26 +44,34 @@ void DisplayManager::showSystemState(const SensorData &data, const SystemState &
     display.print("DHT SENSOR ERROR");
   }
 
-  display.setCursor(0, 42);
+  display.setCursor(0, 40);
   display.print("WiFi:");
   display.print(state.wifiConnected ? "OK " : "ERR");
   display.print(" MQTT:");
   display.print(state.mqttConnected ? "OK" : "ERR");
 
-  display.setCursor(0, 54);
+  display.setCursor(0, 50);
   display.println(msg);
+
+  if (state.alarmActive && !state.activeAlarmReason.isEmpty()) {
+    display.setCursor(0, 58);
+    display.print("AL:");
+    display.println(state.activeAlarmReason);
+  }
 
   display.display();
 }
 
-void DisplayManager::showAlarm(const String &reason) {
+void DisplayManager::showAlarm(const String &stateLabel, const String &reason) {
   display.clearDisplay();
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
 
-  display.setCursor(18, 18);
-  display.println("!!! ALARM !!!");
-  display.setCursor(8, 38);
+  display.setCursor(0, 8);
+  display.println(stateLabel);
+  display.setCursor(0, 24);
+  display.println("Reason:");
+  display.setCursor(0, 40);
   display.println(reason);
   display.display();
 }

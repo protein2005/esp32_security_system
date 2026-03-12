@@ -101,6 +101,9 @@ bool NetworkManager::publishTelemetry(const SensorData &data, SystemState &state
   doc["armed"] = state.isArmed;
   doc["offline"] = state.offlineMode;
   doc["sensorFailure"] = state.sensorFailure;
+  doc["alarmActive"] = state.alarmActive;
+  doc["alarmSilenced"] = state.alarmSilenced;
+  doc["activeAlarmReason"] = state.activeAlarmReason;
   doc["dhtOk"] = data.dhtOk;
 
   String payload;
@@ -116,6 +119,8 @@ bool NetworkManager::publishAlarm(const String &reason, SystemState &state) {
   doc["reason"] = reason;
   doc["armed"] = state.isArmed;
   doc["offline"] = state.offlineMode;
+  doc["alarmActive"] = state.alarmActive;
+  doc["alarmSilenced"] = state.alarmSilenced;
 
   String payload;
   serializeJson(doc, payload);
@@ -131,6 +136,9 @@ bool NetworkManager::publishHeartbeat(SystemState &state) {
   doc["mqtt"] = state.mqttConnected;
   doc["offline"] = state.offlineMode;
   doc["armed"] = state.isArmed;
+  doc["alarmActive"] = state.alarmActive;
+  doc["alarmSilenced"] = state.alarmSilenced;
+  doc["activeAlarmReason"] = state.activeAlarmReason;
   doc["queuedEvents"] = state.queuedEvents;
 
   String payload;
@@ -147,6 +155,9 @@ bool NetworkManager::publishStatus(const String &status, SystemState &state) {
   doc["armed"] = state.isArmed;
   doc["offline"] = state.offlineMode;
   doc["sensorFailure"] = state.sensorFailure;
+  doc["alarmActive"] = state.alarmActive;
+  doc["alarmSilenced"] = state.alarmSilenced;
+  doc["activeAlarmReason"] = state.activeAlarmReason;
   doc["queuedEvents"] = state.queuedEvents;
 
   String payload;

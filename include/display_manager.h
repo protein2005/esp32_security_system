@@ -10,7 +10,7 @@ public:
   DisplayManager();
   bool begin();
   void showSystemState(const SensorData &data, const SystemState &state, const String &msg);
-  void showAlarm(const String &reason);
+  void showAlarm(const String &stateLabel, const String &reason);
   void showStartup();
 
 private:

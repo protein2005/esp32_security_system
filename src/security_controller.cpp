@@ -28,6 +28,8 @@ void SecurityController::begin() {
   systemState.mqttConnected = false;
   systemState.wifiConnected = false;
   systemState.sensorFailure = false;
+  systemState.alarmActive = false;
+  systemState.alarmSilenced = false;
   systemState.queuedEvents = 0;
   systemState.tempMinThreshold = DEFAULT_TEMP_MIN_THRESHOLD;
   systemState.tempMaxThreshold = DEFAULT_TEMP_MAX_THRESHOLD;
@@ -51,6 +53,7 @@ void SecurityController::begin() {
 
 void SecurityController::update() {
   network.update(systemState);
+  alarm.update();
 
   if (sensors.isArmButtonPressed()) {
     setArmedState(!systemState.isArmed);
@@ -61,6 +64,10 @@ void SecurityController::update() {
     network.publishStatus(systemState.isArmed ? "ARMED" : "DISARMED", systemState);
   }
 
+  if (sensors.isResetAlarmButtonPressed()) {
+    resetAlarm(true);
+  }
+
   unsigned long now = millis();
 
   if (now - lastSensorRead >= SENSOR_READ_INTERVAL) {
@@ -68,6 +75,16 @@ void SecurityController::update() {
 
     sensorData = sensors.readData();
     systemState.sensorFailure = !sensorData.dhtOk;
+
+    String currentAlarmReason = determineAlarmReason();
+    if (currentAlarmReason.isEmpty()) {
+      clearAlarmState(true);
+    } else if (!systemState.alarmActive) {
+      handleAlarm(currentAlarmReason);
+    } else if (currentAlarmReason != systemState.activeAlarmReason) {
+      systemState.alarmSilenced = false;
+      handleAlarm(currentAlarmReason);
+    }
 
     if (sensorData.dhtOk) {
       Serial.print("[");
@@ -91,28 +108,12 @@ void SecurityController::update() {
     display.showSystemState(
       sensorData,
       systemState,
-      systemState.offlineMode ? "OFFLINE MODE" : "SYSTEM OK"
+      systemState.alarmActive
+        ? (systemState.alarmSilenced ? "ALARM: SILENCED" : "ALARM: ACTIVE")
+        : (systemState.offlineMode ? "OFFLINE MODE" : "SYSTEM OK")
     );
 
     network.publishTelemetry(sensorData, systemState);
-
-    if (!sensorData.dhtOk) {
-      handleAlarm("SENSOR_FAILURE");
-    } else if (isTemperatureOutOfRange()) {
-      handleAlarm("TEMP_OUT_OF_RANGE");
-    } else if (isHumidityOutOfRange()) {
-      handleAlarm("HUMIDITY_OUT_OF_RANGE");
-    }
-
-    if (systemState.isArmed) {
-      if (sensorData.doorOpen) {
-        handleAlarm("DOOR_OPEN");
-      }
-
-      if (sensorData.motionDetected) {
-        handleAlarm("MOTION");
-      }
-    }
   }
 
   if (now - lastHeartbeat >= HEARTBEAT_INTERVAL) {
@@ -122,17 +123,25 @@ void SecurityController::update() {
 }
 
 void SecurityController::handleAlarm(const String &reason) {
+  systemState.alarmActive = true;
+  bool reasonChanged = systemState.activeAlarmReason != reason;
+  systemState.alarmSilenced = false;
+  systemState.activeAlarmReason = reason;
+
   Serial.print("!!! ALARM [");
   Serial.print(ROOM_ID);
   Serial.print("]: ");
   Serial.print(reason);
   Serial.println(" !!!");
 
-  display.showAlarm(reason);
-  alarm.trigger();
+  alarm.setVisualAlert(true);
+  display.showAlarm(systemState.alarmSilenced ? "ALARM SILENCED" : "ALARM ACTIVE", reason);
+  alarm.startSound();
 
-  network.publishAlarm(reason, systemState);
-  network.publishStatus("ALARM", systemState);
+  if (reasonChanged) {
+    network.publishAlarm(reason, systemState);
+    network.publishStatus("ALARM", systemState);
+  }
 }
 
 void SecurityController::processCommands(const String &cmd) {
@@ -178,11 +187,11 @@ void SecurityController::processCommands(const String &cmd) {
     network.publishStatus("ARMED", systemState);
   } else if (strcmp(action, "DISARM") == 0) {
     setArmedState(false);
-    alarm.stop();
+    resetAlarm(false);
+    clearAlarmState(false);
     network.publishStatus("DISARMED", systemState);
   } else if (strcmp(action, "RESET_ALARM") == 0) {
-    alarm.stop();
-    network.publishStatus("ALARM_RESET", systemState);
+    resetAlarm(true);
   } else if (strcmp(action, "SET_THRESHOLDS") == 0) {
     float tempMin = !doc["tempMin"].isNull() ? doc["tempMin"].as<float>() : systemState.tempMinThreshold;
     float tempMax = !doc["tempMax"].isNull() ? doc["tempMax"].as<float>() : systemState.tempMaxThreshold;
@@ -279,6 +288,67 @@ bool SecurityController::isTemperatureOutOfRange() const {
 bool SecurityController::isHumidityOutOfRange() const {
   return sensorData.humidity < systemState.humidityMinThreshold ||
          sensorData.humidity > systemState.humidityMaxThreshold;
+}
+
+String SecurityController::determineAlarmReason() const {
+  if (!sensorData.dhtOk) {
+    return "SENSOR_FAILURE";
+  }
+
+  if (isTemperatureOutOfRange()) {
+    return "TEMP_OUT_OF_RANGE";
+  }
+
+  if (isHumidityOutOfRange()) {
+    return "HUMIDITY_OUT_OF_RANGE";
+  }
+
+  if (systemState.isArmed) {
+    if (sensorData.doorOpen) {
+      return "DOOR_OPEN";
+    }
+
+    if (sensorData.motionDetected) {
+      return "MOTION";
+    }
+  }
+
+  return "";
+}
+
+void SecurityController::clearAlarmState(bool publishStatusUpdate) {
+  if (!systemState.alarmActive && !systemState.alarmSilenced && systemState.activeAlarmReason.isEmpty()) {
+    return;
+  }
+
+  alarm.stopAll();
+  systemState.alarmActive = false;
+  systemState.alarmSilenced = false;
+  systemState.activeAlarmReason = "";
+
+  if (publishStatusUpdate) {
+    network.publishStatus("ALARM_CLEARED", systemState);
+  }
+}
+
+void SecurityController::resetAlarm(bool publishStatusUpdate) {
+  if (!systemState.alarmActive) {
+    alarm.stopSound();
+    if (publishStatusUpdate) {
+      network.publishStatus("ALARM_RESET", systemState);
+    }
+    return;
+  }
+
+  alarm.stopSound();
+  alarm.setVisualAlert(true);
+  systemState.alarmSilenced = true;
+
+  display.showAlarm("ALARM SILENCED", systemState.activeAlarmReason);
+
+  if (publishStatusUpdate) {
+    network.publishStatus("ALARM_RESET", systemState);
+  }
 }
 
 void SecurityController::commandProxy(const String &cmd) {

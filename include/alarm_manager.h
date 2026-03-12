@@ -6,8 +6,16 @@
 class AlarmManager {
 public:
   void begin();
-  void trigger();
-  void stop();
+  void update();
+  void setVisualAlert(bool enabled);
+  void startSound();
+  void stopSound();
+  void stopAll();
+
+private:
+  bool soundEnabled = false;
+  unsigned long lastToneChange = 0;
+  size_t toneStep = 0;
 };
 
 #endif

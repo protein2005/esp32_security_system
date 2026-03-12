@@ -11,10 +11,13 @@ public:
   void begin();
   SensorData readData();
   bool isArmButtonPressed();
+  bool isResetAlarmButtonPressed();
 
 private:
   DHT dht;
-  int lastBtnState;
+  int lastArmBtnState;
+  int lastResetBtnState;
+  bool isButtonPressed(uint8_t pin, int &lastState);
 };
 
 #endif

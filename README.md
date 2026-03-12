@@ -56,6 +56,9 @@ security/rooms/room101/
 - `tempMaxThreshold`
 - `humidityMinThreshold`
 - `humidityMaxThreshold`
+- `alarmActive`
+- `alarmSilenced`
+- `activeAlarmReason`
 
 Додаткові поля залежать від конкретного топіка та типу події.
 
@@ -107,6 +110,7 @@ security/rooms/room101/status
 - `DISARMED`
 - `ALARM`
 - `ALARM_RESET`
+- `ALARM_CLEARED`
 - `THRESHOLDS_UPDATED`
 
 Приклад payload:
@@ -127,6 +131,9 @@ security/rooms/room101/status
   "armed": true,
   "offline": false,
   "sensorFailure": false,
+  "alarmActive": false,
+  "alarmSilenced": false,
+  "activeAlarmReason": "",
   "queuedEvents": 0
 }
 ```
@@ -157,6 +164,9 @@ security/rooms/room101/heartbeat
   "mqtt": true,
   "offline": false,
   "armed": false,
+  "alarmActive": false,
+  "alarmSilenced": false,
+  "activeAlarmReason": "",
   "queuedEvents": 0
 }
 ```
@@ -193,7 +203,9 @@ security/rooms/room101/alarm
   "eventType": "alarm",
   "reason": "MOTION",
   "armed": true,
-  "offline": false
+  "offline": false,
+  "alarmActive": true,
+  "alarmSilenced": false
 }
 ```
 
@@ -240,6 +252,15 @@ security/rooms/room101/cmd
   "action": "RESET_ALARM"
 }
 ```
+
+Поведінка:
+
+- звукова сигналізація вимикається одразу
+- LED-індикатор продовжує світитися, поки причина тривоги не зникне
+- `alarmSilenced` стає `true`
+- якщо причина тривоги не зникла, бузер не вмикається повторно для тієї ж причини
+- якщо причина зникла, публікується `ALARM_CLEARED`
+- якщо з’явилась інша причина тривоги, звукова сигналізація активується знову
 
 ### SET_THRESHOLDS
 
@@ -318,6 +339,11 @@ security/rooms/room101/cmd
 Публікувати команди потрібно в:
 
 - `security/rooms/room101/cmd`
+
+Локальні кнопки в симуляції:
+
+- `ARM/DISARM` переключає режим охорони
+- `RESET ALARM` вимикає активний бузер локально так само, як команда `RESET_ALARM`
 
 ## Типовий сценарій демонстрації
 

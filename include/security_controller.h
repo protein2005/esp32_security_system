@@ -35,6 +35,9 @@ private:
   void saveThresholdState();
   bool isTemperatureOutOfRange() const;
   bool isHumidityOutOfRange() const;
+  String determineAlarmReason() const;
+  void clearAlarmState(bool publishStatusUpdate);
+  void resetAlarm(bool publishStatusUpdate);
   static SecurityController *instance;
   static void commandProxy(const String &cmd);
 };

@@ -17,11 +17,14 @@ struct SystemState {
   bool mqttConnected = false;
   bool wifiConnected = false;
   bool sensorFailure = false;
+  bool alarmActive = false;
+  bool alarmSilenced = false;
   size_t queuedEvents = 0;
   float tempMinThreshold = 0.0f;
   float tempMaxThreshold = 0.0f;
   float humidityMinThreshold = 0.0f;
   float humidityMaxThreshold = 0.0f;
+  String activeAlarmReason = "";
 };
 
 struct QueuedEvent {
