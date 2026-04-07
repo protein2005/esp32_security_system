@@ -37,6 +37,8 @@ security/rooms/room101/
   Сигнал про стан підключення та працездатність вузла.
 - `security/rooms/room101/alarm`
   Події тривоги та причина спрацювання.
+- `security/rooms/room101/event`
+  Службові події, зокрема локальні фізичні дії на пристрої.
 
 ### Топік, на який підписується ESP32
 
@@ -342,8 +344,54 @@ security/rooms/room101/cmd
 
 Локальні кнопки в симуляції:
 
-- `ARM/DISARM` переключає режим охорони
+- `ARM ONLY` дозволяє лише локальну постановку на охорону
 - `RESET ALARM` вимикає активний бузер локально так само, як команда `RESET_ALARM`
+
+Обмеження локального фізичного керування:
+
+- локально дозволено лише постановку на охорону
+- локально дозволено лише приглушення звуку тривоги
+- локальний `DISARM` заборонений
+- локальні дії фіксуються в `security/rooms/room101/event`
+
+## Топік подій
+
+Топік:
+
+```text
+security/rooms/room101/event
+```
+
+Приклади локальних подій:
+
+- `LOCAL_ARM`
+- `LOCAL_ALARM_SILENCE`
+- `LOCAL_DISARM_BLOCKED`
+
+Приклад payload:
+
+```json
+{
+  "deviceId": "esp32_room101",
+  "roomId": "room101",
+  "roomName": "Server Room 101",
+  "zoneType": "server_room",
+  "firmwareVersion": "1.1.0",
+  "tempMinThreshold": 18.0,
+  "tempMaxThreshold": 32.0,
+  "humidityMinThreshold": 30.0,
+  "humidityMaxThreshold": 70.0,
+  "eventType": "event",
+  "eventName": "LOCAL_ARM",
+  "source": "local",
+  "details": "Physical ARM button pressed",
+  "armed": true,
+  "offline": false,
+  "alarmActive": false,
+  "alarmSilenced": false,
+  "activeAlarmReason": ""
+}
+```
 
 ## Типовий сценарій демонстрації
 

@@ -18,6 +18,7 @@ public:
   bool publishAlarm(const String &reason, SystemState &state);
   bool publishHeartbeat(SystemState &state);
   bool publishStatus(const String &status, SystemState &state);
+  bool publishEvent(const String &eventName, const String &source, const String &details, SystemState &state);
 
   void setCommandHandler(void (*handler)(const String&));
   PubSubClient& getClient();
@@ -34,6 +35,7 @@ private:
   String alarmTopic;
   String statusTopic;
   String heartbeatTopic;
+  String eventTopic;
   String cmdTopic;
 
   void buildTopics();

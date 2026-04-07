@@ -38,6 +38,7 @@ private:
   String determineAlarmReason() const;
   void clearAlarmState(bool publishStatusUpdate);
   void resetAlarm(bool publishStatusUpdate);
+  void logLocalAction(const String &eventName, const String &details);
   static SecurityController *instance;
   static void commandProxy(const String &cmd);
 };

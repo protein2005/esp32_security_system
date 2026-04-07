@@ -13,6 +13,7 @@ void NetworkManager::buildTopics() {
   alarmTopic = base + "/alarm";
   statusTopic = base + "/status";
   heartbeatTopic = base + "/heartbeat";
+  eventTopic = base + "/event";
   cmdTopic = base + "/cmd";
 }
 
@@ -163,6 +164,25 @@ bool NetworkManager::publishStatus(const String &status, SystemState &state) {
   String payload;
   serializeJson(doc, payload);
   return publishOrQueue(statusTopic, payload, state);
+}
+
+bool NetworkManager::publishEvent(const String &eventName, const String &source, const String &details, SystemState &state) {
+  JsonDocument doc;
+  populateBasePayload(doc);
+  populateThresholdPayload(doc, state);
+  doc["eventType"] = "event";
+  doc["eventName"] = eventName;
+  doc["source"] = source;
+  doc["details"] = details;
+  doc["armed"] = state.isArmed;
+  doc["offline"] = state.offlineMode;
+  doc["alarmActive"] = state.alarmActive;
+  doc["alarmSilenced"] = state.alarmSilenced;
+  doc["activeAlarmReason"] = state.activeAlarmReason;
+
+  String payload;
+  serializeJson(doc, payload);
+  return publishOrQueue(eventTopic, payload, state);
 }
 
 void NetworkManager::setCommandHandler(void (*handler)(const String&)) {

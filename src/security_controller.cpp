@@ -56,15 +56,20 @@ void SecurityController::update() {
   alarm.update();
 
   if (sensors.isArmButtonPressed()) {
-    setArmedState(!systemState.isArmed);
+    if (!systemState.isArmed) {
+      setArmedState(true);
 
-    Serial.print("Status changed: ");
-    Serial.println(systemState.isArmed ? "ARMED" : "DISARMED");
-
-    network.publishStatus(systemState.isArmed ? "ARMED" : "DISARMED", systemState);
+      Serial.println("Local action: ARMED");
+      network.publishStatus("ARMED", systemState);
+      logLocalAction("LOCAL_ARM", "Physical ARM button pressed");
+    } else {
+      Serial.println("Local action blocked: DISARM is remote-only");
+      logLocalAction("LOCAL_DISARM_BLOCKED", "ARM button press ignored while already armed");
+    }
   }
 
   if (sensors.isResetAlarmButtonPressed()) {
+    logLocalAction("LOCAL_ALARM_SILENCE", "Physical RESET ALARM button pressed");
     resetAlarm(true);
   }
 
@@ -349,6 +354,10 @@ void SecurityController::resetAlarm(bool publishStatusUpdate) {
   if (publishStatusUpdate) {
     network.publishStatus("ALARM_RESET", systemState);
   }
+}
+
+void SecurityController::logLocalAction(const String &eventName, const String &details) {
+  network.publishEvent(eventName, "local", details, systemState);
 }
 
 void SecurityController::commandProxy(const String &cmd) {

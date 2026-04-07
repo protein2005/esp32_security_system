@@ -50,7 +50,7 @@
       "id": "btn1",
       "top": 294.2,
       "left": 124.8,
-      "attrs": { "label": "ARM/DISARM", "color": "green" }
+      "attrs": { "label": "ARM ONLY", "color": "green" }
     },
     {
       "type": "wokwi-pushbutton",
