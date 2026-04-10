@@ -11,6 +11,20 @@ struct SensorData {
   bool dhtOk = false;
 };
 
+struct FirmwareConstants {
+  String deviceId;
+  String deviceToken;
+  String firmwareVersion;
+  String deviceType;
+};
+
+struct ProvisionedConfig {
+  bool isProvisioned = false;
+  String roomId;
+  String roomName;
+  String zoneType;
+};
+
 struct SystemState {
   bool isArmed = false;
   bool offlineMode = false;

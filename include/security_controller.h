@@ -7,6 +7,7 @@
 #include "display_manager.h"
 #include "alarm_manager.h"
 #include "network_manager.h"
+#include "device_config_manager.h"
 
 class SecurityController {
 public:
@@ -18,8 +19,11 @@ private:
   DisplayManager display;
   AlarmManager alarm;
   NetworkManager network;
+  DeviceConfigManager deviceConfigManager;
   Preferences preferences;
 
+  FirmwareConstants firmwareConstants;
+  ProvisionedConfig provisionedConfig;
   SensorData sensorData;
   SystemState systemState;
 
@@ -30,6 +34,7 @@ private:
   void handleAlarm(const String &reason);
   void setArmedState(bool armed);
   bool updateThresholds(float tempMin, float tempMax, float humidityMin, float humidityMax);
+  bool provisionDevice(const String &roomId, const String &roomName, const String &zoneType);
   void loadPersistentState();
   void saveArmedState();
   void saveThresholdState();
