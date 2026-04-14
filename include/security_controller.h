@@ -29,6 +29,7 @@ private:
 
   unsigned long lastSensorRead = 0;
   unsigned long lastHeartbeat = 0;
+  unsigned long motionAlarmUntil = 0;
 
   void processCommands(const String &cmd);
   void handleAlarm(const String &reason);
@@ -36,13 +37,16 @@ private:
   bool updateThresholds(float tempMin, float tempMax, float humidityMin, float humidityMax);
   bool provisionDevice(const String &roomId, const String &roomName, const String &zoneType);
   void loadPersistentState();
+  void clearPersistentState();
   void saveArmedState();
   void saveThresholdState();
   bool isTemperatureOutOfRange() const;
   bool isHumidityOutOfRange() const;
+  bool isMotionAlarmActive(unsigned long now) const;
   String determineAlarmReason() const;
   void clearAlarmState(bool publishStatusUpdate);
   void resetAlarm(bool publishStatusUpdate);
+  void factoryResetDevice();
   void logLocalAction(const String &eventName, const String &details);
   static SecurityController *instance;
   static void commandProxy(const String &cmd);

@@ -10,6 +10,7 @@ public:
   void load(FirmwareConstants &firmware, ProvisionedConfig &provisioned);
   void saveProvisionedConfig(const ProvisionedConfig &provisioned);
   void clearProvisionedConfig();
+  void clearAll();
 
 private:
   Preferences preferences;

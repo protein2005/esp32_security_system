@@ -37,6 +37,10 @@ void DeviceConfigManager::clearProvisionedConfig() {
   preferences.remove("zoneType");
 }
 
+void DeviceConfigManager::clearAll() {
+  preferences.clear();
+}
+
 String DeviceConfigManager::buildDeviceIdFromMac() const {
   uint64_t mac = ESP.getEfuseMac();
   uint32_t suffix = static_cast<uint32_t>(mac & 0xFFFFFF);

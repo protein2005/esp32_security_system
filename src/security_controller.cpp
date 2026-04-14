@@ -1,6 +1,7 @@
 #include "security_controller.h"
 #include "config.h"
 #include <ArduinoJson.h>
+#include <esp_system.h>
 
 SecurityController* SecurityController::instance = nullptr;
 
@@ -95,6 +96,10 @@ void SecurityController::update() {
 
     sensorData = sensors.readData();
     systemState.sensorFailure = !sensorData.dhtOk;
+
+    if (systemState.isArmed && sensorData.motionDetected) {
+      motionAlarmUntil = now + MOTION_ALARM_HOLD_MS;
+    }
 
     String currentAlarmReason = determineAlarmReason();
     if (currentAlarmReason.isEmpty()) {
@@ -234,6 +239,8 @@ void SecurityController::processCommands(const String &cmd) {
     network.publishStatus("DISARMED", systemState);
   } else if (strcmp(action, "RESET_ALARM") == 0) {
     resetAlarm(true);
+  } else if (strcmp(action, "FACTORY_RESET") == 0) {
+    factoryResetDevice();
   } else if (strcmp(action, "SET_THRESHOLDS") == 0) {
     float tempMin = !doc["tempMin"].isNull() ? doc["tempMin"].as<float>() : systemState.tempMinThreshold;
     float tempMax = !doc["tempMax"].isNull() ? doc["tempMax"].as<float>() : systemState.tempMaxThreshold;
@@ -272,6 +279,9 @@ void SecurityController::setArmedState(bool armed) {
   }
 
   systemState.isArmed = armed;
+  if (!armed) {
+    motionAlarmUntil = 0;
+  }
   saveArmedState();
 }
 
@@ -328,6 +338,10 @@ void SecurityController::loadPersistentState() {
   systemState.humidityMaxThreshold = preferences.getFloat("humMax", DEFAULT_HUMIDITY_MAX_THRESHOLD);
 }
 
+void SecurityController::clearPersistentState() {
+  preferences.clear();
+}
+
 void SecurityController::saveArmedState() {
   preferences.putBool("isArmed", systemState.isArmed);
 }
@@ -350,6 +364,8 @@ bool SecurityController::isHumidityOutOfRange() const {
 }
 
 String SecurityController::determineAlarmReason() const {
+  unsigned long now = millis();
+
   if (!sensorData.dhtOk) {
     return "SENSOR_FAILURE";
   }
@@ -367,12 +383,20 @@ String SecurityController::determineAlarmReason() const {
       return "DOOR_OPEN";
     }
 
-    if (sensorData.motionDetected) {
+    if (isMotionAlarmActive(now)) {
       return "MOTION";
     }
   }
 
   return "";
+}
+
+bool SecurityController::isMotionAlarmActive(unsigned long now) const {
+  if (motionAlarmUntil == 0) {
+    return false;
+  }
+
+  return static_cast<long>(motionAlarmUntil - now) > 0;
 }
 
 void SecurityController::clearAlarmState(bool publishStatusUpdate) {
@@ -418,6 +442,24 @@ void SecurityController::resetAlarm(bool publishStatusUpdate) {
 
 void SecurityController::logLocalAction(const String &eventName, const String &details) {
   network.publishEvent(eventName, "local", details, systemState);
+}
+
+void SecurityController::factoryResetDevice() {
+  Serial.println("Factory reset requested");
+
+  if (provisionedConfig.isProvisioned) {
+    network.publishEvent("FACTORY_RESET", "remote", "Factory reset requested", systemState);
+    network.publishStatus("FACTORY_RESET", systemState);
+  }
+
+  alarm.stopAll();
+  motionAlarmUntil = 0;
+
+  clearPersistentState();
+  deviceConfigManager.clearAll();
+
+  delay(500);
+  ESP.restart();
 }
 
 void SecurityController::commandProxy(const String &cmd) {
