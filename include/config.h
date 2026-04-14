@@ -10,7 +10,7 @@
 #define OLED_RESET -1
 
 // --- DHT ---
-#define DHTTYPE DHT22
+#define DHTTYPE DHT11
 
 // --- WiFi ---
 static const char *WIFI_SSID = "Wokwi-GUEST";
