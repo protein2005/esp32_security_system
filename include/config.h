@@ -18,15 +18,12 @@ static const char *WIFI_PASSWORD = "";
 
 // --- MQTT ---
 // Локальний брокер на ПК, приклад: 192.168.0.105
-// Заміни на свій реальний IP комп'ютера
 static const IPAddress MQTT_SERVER(192, 168, 0, 106);
 static const uint16_t MQTT_PORT = 1883;
+static const char *MQTT_TOPIC_ROOT = "security";
 
-// --- Device identity ---
-static const char *ROOM_ID = "room101";
-static const char *ROOM_NAME = "Server Room 101";
-static const char *ZONE_TYPE = "server_room";
-static const char *DEVICE_ID = "esp32_room101";
+// --- Firmware identity ---
+static const char *DEVICE_TYPE = "esp32_security_node";
 static const char *DEVICE_TOKEN = "room101_secure_token";
 static const char *FIRMWARE_VERSION = "1.1.0";
 
@@ -40,7 +37,8 @@ static constexpr float DEFAULT_HUMIDITY_MAX_THRESHOLD = 70.0f;
 static const unsigned long SENSOR_READ_INTERVAL = 1000;
 static const unsigned long HEARTBEAT_INTERVAL = 5000;
 static const unsigned long MQTT_RECONNECT_INTERVAL = 5000;
+static const unsigned long MOTION_ALARM_HOLD_MS = 5000;
 static const size_t OFFLINE_QUEUE_CAPACITY = 12;
-static const uint16_t MQTT_PACKET_BUFFER_SIZE = 512;
+static const uint16_t MQTT_PACKET_BUFFER_SIZE = 1024;
 
 #endif

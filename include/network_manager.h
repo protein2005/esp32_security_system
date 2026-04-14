@@ -11,8 +11,9 @@ class NetworkManager {
 public:
   NetworkManager();
 
-  void begin();
+  void begin(const FirmwareConstants &firmware, const ProvisionedConfig &provisioned);
   void update(SystemState &state);
+  void refreshTopics();
 
   bool publishTelemetry(const SensorData &data, SystemState &state);
   bool publishAlarm(const String &reason, SystemState &state);
@@ -24,6 +25,8 @@ public:
   PubSubClient& getClient();
 
 private:
+  const FirmwareConstants *firmware = nullptr;
+  const ProvisionedConfig *provisioned = nullptr;
   WiFiClient wifiClient;
   PubSubClient mqttClient;
   unsigned long lastReconnectAttempt;

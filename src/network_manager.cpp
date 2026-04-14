@@ -7,23 +7,56 @@ NetworkManager::NetworkManager()
   : mqttClient(wifiClient), lastReconnectAttempt(0) {}
 
 void NetworkManager::buildTopics() {
-  String base = "security/rooms/" + String(ROOM_ID);
+  if (firmware == nullptr || provisioned == nullptr) {
+    return;
+  }
 
-  telemetryTopic = base + "/telemetry";
-  alarmTopic = base + "/alarm";
-  statusTopic = base + "/status";
-  heartbeatTopic = base + "/heartbeat";
-  eventTopic = base + "/event";
-  cmdTopic = base + "/cmd";
+  String root = String(MQTT_TOPIC_ROOT);
+  String deviceBase = root + "/devices/" + firmware->deviceId;
+
+  telemetryTopic = deviceBase + "/telemetry";
+  alarmTopic = deviceBase + "/alarm";
+  statusTopic = deviceBase + "/status";
+  heartbeatTopic = deviceBase + "/heartbeat";
+  eventTopic = deviceBase + "/event";
+  cmdTopic = deviceBase + "/cmd";
+
+  if (provisioned->isProvisioned && !provisioned->roomId.isEmpty()) {
+    String roomBase = root + "/rooms/" + provisioned->roomId;
+    telemetryTopic = roomBase + "/telemetry";
+    alarmTopic = roomBase + "/alarm";
+    statusTopic = roomBase + "/status";
+    heartbeatTopic = roomBase + "/heartbeat";
+    eventTopic = roomBase + "/event";
+  }
 }
 
-void NetworkManager::begin() {
+void NetworkManager::begin(const FirmwareConstants &firmwareConfig, const ProvisionedConfig &provisionedConfig) {
+  firmware = &firmwareConfig;
+  provisioned = &provisionedConfig;
+
   WiFi.mode(WIFI_STA);
   buildTopics();
 
   mqttClient.setServer(MQTT_SERVER, MQTT_PORT);
   mqttClient.setBufferSize(MQTT_PACKET_BUFFER_SIZE);
   mqttClient.setCallback(mqttCallback);
+}
+
+void NetworkManager::refreshTopics() {
+  buildTopics();
+
+  if (!mqttClient.connected() || firmware == nullptr || provisioned == nullptr) {
+    return;
+  }
+
+  String deviceCmdTopic = String(MQTT_TOPIC_ROOT) + "/devices/" + firmware->deviceId + "/cmd";
+  mqttClient.subscribe(deviceCmdTopic.c_str());
+
+  if (provisioned->isProvisioned && !provisioned->roomId.isEmpty()) {
+    String roomCmdTopic = String(MQTT_TOPIC_ROOT) + "/rooms/" + provisioned->roomId + "/cmd";
+    mqttClient.subscribe(roomCmdTopic.c_str());
+  }
 }
 
 void NetworkManager::connectWiFi(SystemState &state) {
@@ -48,18 +81,22 @@ void NetworkManager::connectWiFi(SystemState &state) {
 }
 
 bool NetworkManager::connectMQTT(SystemState &state) {
+  if (firmware == nullptr) {
+    return false;
+  }
+
   Serial.println("Connecting to MQTT...");
 
-  bool ok = mqttClient.connect(DEVICE_ID);
+  bool ok = mqttClient.connect(firmware->deviceId.c_str());
   if (ok) {
     Serial.println("MQTT connected");
-    mqttClient.subscribe(cmdTopic.c_str());
+    refreshTopics();
 
     state.mqttConnected = true;
     state.offlineMode = false;
 
     flushOfflineQueue(state);
-    publishStatus("ONLINE", state);
+    publishStatus(provisioned != nullptr && provisioned->isProvisioned ? "ONLINE" : "UNPROVISIONED", state);
     return true;
   }
 
@@ -193,7 +230,7 @@ void NetworkManager::mqttCallback(char *topic, byte *payload, unsigned int lengt
   (void)topic;
   String message;
   for (unsigned int i = 0; i < length; i++) {
-    message += (char)payload[i];
+    message += static_cast<char>(payload[i]);
   }
 
   if (externalCommandHandler != nullptr) {
@@ -206,10 +243,13 @@ PubSubClient& NetworkManager::getClient() {
 }
 
 bool NetworkManager::publishOrQueue(const String &topic, const String &payload, SystemState &state) {
+  const size_t estimatedPacketSize = topic.length() + payload.length() + 16;
   Serial.print("MQTT publish attempt: topic=");
   Serial.print(topic);
-  Serial.print(", bytes=");
-  Serial.println(payload.length());
+  Serial.print(", payloadBytes=");
+  Serial.print(payload.length());
+  Serial.print(", estimatedPacketBytes=");
+  Serial.println(estimatedPacketSize);
 
   if (mqttClient.connected()) {
     bool published = mqttClient.publish(topic.c_str(), payload.c_str());
@@ -268,11 +308,17 @@ void NetworkManager::flushOfflineQueue(SystemState &state) {
 }
 
 void NetworkManager::populateBasePayload(JsonDocument &doc) const {
-  doc["deviceId"] = DEVICE_ID;
-  doc["roomId"] = ROOM_ID;
-  doc["roomName"] = ROOM_NAME;
-  doc["zoneType"] = ZONE_TYPE;
-  doc["firmwareVersion"] = FIRMWARE_VERSION;
+  if (firmware == nullptr || provisioned == nullptr) {
+    return;
+  }
+
+  doc["deviceId"] = firmware->deviceId;
+  doc["deviceType"] = firmware->deviceType;
+  doc["firmwareVersion"] = firmware->firmwareVersion;
+  doc["provisioned"] = provisioned->isProvisioned;
+  doc["roomId"] = provisioned->roomId;
+  doc["roomName"] = provisioned->roomName;
+  doc["zoneType"] = provisioned->zoneType;
 }
 
 void NetworkManager::populateThresholdPayload(JsonDocument &doc, const SystemState &state) const {
